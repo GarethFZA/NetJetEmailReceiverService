@@ -1,9 +1,11 @@
 ﻿
 Microsoft Visual Studio Solution File, Format Version 12.00
-# Visual Studio Version 16
-VisualStudioVersion = 16.0.30011.22
+# Visual Studio Version 17
+VisualStudioVersion = 17.14.36623.8 d17.14
 MinimumVisualStudioVersion = 10.0.40219.1
 Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "NetJetEmailReceiverService", "NetJetEmailReceiverService.csproj", "{032DBDC4-FF63-4CDB-9ED5-0D014D3C0F18}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "EmailProcessorConsoleTest", "TestConsoleApp\TestConsoleApp\EmailProcessorConsoleTest.csproj", "{E0270C05-4CFD-4A12-A782-469F4B68559F}"
 EndProject
 Global
 	GlobalSection(SolutionConfigurationPlatforms) = preSolution
@@ -15,6 +17,10 @@ Global
 		{032DBDC4-FF63-4CDB-9ED5-0D014D3C0F18}.Debug|Any CPU.Build.0 = Debug|Any CPU
 		{032DBDC4-FF63-4CDB-9ED5-0D014D3C0F18}.Release|Any CPU.ActiveCfg = Release|Any CPU
 		{032DBDC4-FF63-4CDB-9ED5-0D014D3C0F18}.Release|Any CPU.Build.0 = Release|Any CPU
+		{E0270C05-4CFD-4A12-A782-469F4B68559F}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{E0270C05-4CFD-4A12-A782-469F4B68559F}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{E0270C05-4CFD-4A12-A782-469F4B68559F}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{E0270C05-4CFD-4A12-A782-469F4B68559F}.Release|Any CPU.Build.0 = Release|Any CPU
 	EndGlobalSection
 	GlobalSection(SolutionProperties) = preSolution
 		HideSolutionNode = FALSE
