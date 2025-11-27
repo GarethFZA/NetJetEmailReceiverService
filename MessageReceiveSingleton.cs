@@ -40,18 +40,12 @@ namespace Charismatech.MessageQueueClasses
             }
         }
         //private static string _SMTPServer = "outlook.office365.com"; //ConfigurationManager.AppSettings["POP3Server"];
-        private static string _SMTPServer = "smtp.office365.com";// "mail.charismatech.co.za"; 
+        private static string _SMTPServer = "outlook.office365.com";// "mail.charismatech.co.za"; 
         private static int _SMTPPort = 993;//Convert.ToInt32(ConfigurationManager.AppSettings["POP3Port"]);
         private static bool _SMTPUseSSL = true;
-        //private static string _SMTPUsername = "chris@lifelinepmb.co.za"; //ConfigurationManager.AppSettings["POP3Username"];
         private static string _SMTPUsername = "projects@adtrp.com"; //ConfigurationManager.AppSettings["POP3Username"];
         private static string _SMTPPassword = "D(173691557380ur"; //ConfigurationManager.AppSettings["POP3Password"];
 
-        //private static string _POP3Server = "mail.lifelinepmb.org.za"; //ConfigurationManager.AppSettings["POP3Server"];
-        //private static int _POP3Port = 110;//Convert.ToInt32(ConfigurationManager.AppSettings["POP3Port"]);
-        //private static bool _POP3UseSSL = false;//Convert.ToBoolean(ConfigurationManager.AppSettings["POP3UseSSL"]);
-        //private static string _POP3Username = "counsellor@lifelinepmb.org.za"; //ConfigurationManager.AppSettings["POP3Username"];
-        //private static string _POP3Password = "CCC@@@LLL2020"; //ConfigurationManager.AppSettings["POP3Password"];
 
         public static string FromEmail = "service@charismatech.co.za";
         public static string BccEmail = "service@charismatech.co.za";
@@ -144,7 +138,7 @@ namespace Charismatech.MessageQueueClasses
                                 client.Inbox.SetFlags(uid, MessageFlags.Seen, true); //Ignore spam
                             else
                             {
-                                Int64 crId = Data.CreateContactRecord(emailMessage);
+                                Int64 crId = Data.ImportEmailMessage(emailMessage);
                                 if (crId > 0) //Successfully created
                                 {
                                     //message.Delete

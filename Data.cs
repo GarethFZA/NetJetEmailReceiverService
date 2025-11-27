@@ -42,47 +42,40 @@ namespace LifeLineEmailReceiverService
             }
 
         }
-        public static Int64 CreateContactRecord(EmailMessage message) //, ILogger log)
+        public static Int64 ImportEmailMessage(EmailMessage message) //, ILogger log)
         {
             Int64 ret = 0;
-            Int64 issueId = 0;
-            int memberId = 0;
+            Int64 emailId = 0;
+            int employeeId = 0;
             Int64 contactRecordId = 0;
 
             using (SqlConnection connection = getSqlConnection())
             {
-
-                memberId = GetOrCreateMember(connection, message);
-
-                if (memberId > 0)
+                employeeId = GetEmployeeIdFromEmail(connection, message);
+                if (employeeId > 0)
                 {
-                    issueId = GetOrCreateIssue(connection, memberId, message);
-
-                    if (issueId > 0)
+                    try
                     {
-                        try
+                        emailId = GetOrCreateEmailRecord(connection, employeeId, message);
+                        if (emailId > 0)
                         {
-                            contactRecordId = InsertContactRecord(connection, issueId, message);
-                            if (contactRecordId > 0)
-                            {
-                                WriteToEventLog(String.Format("ContactRecord created with Id {0}", contactRecordId.ToString()));
-                                ret = contactRecordId;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            SendErrorEmail(ex.Message);
-                            WriteToEventLog(ex.Message);
+                            WriteToEventLog(String.Format("Email created with Id {0}", emailId.ToString()));
+                            ret = contactRecordId;
                         }
                     }
+                    catch (Exception ex)
+                    {
+                        SendErrorEmail(ex.Message);
+                        WriteToEventLog(ex.Message);
+                    }
                 }
-                else
-                {
-                    string msg = GetMessageText();
-                    if (msg != "" && !message.EmailFrom.StartsWith("no-reply"))
-                        ret = SendEmailAutoResponse(connection, message, msg);
+                //else
+                //{
+                //    string msg = GetMessageText();
+                //    if (msg != "" && !message.EmailFrom.StartsWith("no-reply"))
+                //        ret = SendEmailAutoResponse(connection, message, msg);
 
-                }
+                //}
                 //Console.ReadLine();
                 return ret;
             }
@@ -96,47 +89,11 @@ namespace LifeLineEmailReceiverService
             //    "Password=Mug90918;Encrypt=True;TrustServerCertificate=False;" +
             //    "Connection Timeout=30;MultipleActiveResultSets=true";
             string connectionString =
-                "Server=localhost;Database=LifeLineProduction;User ID=LifelineWebUser;Password=Mug90918;Connection Timeout=60;MultipleActiveResultSets=true";
+                "Server=localhost;Database=NetJetADTRP;User ID=teamtimewebuser;Password=tt@2014*;Connection Timeout=60;MultipleActiveResultSets=true";
             var connection = new SqlConnection(connectionString);
             connection.Open();
             return connection;
         }
-
-        private static long InsertContactRecord(SqlConnection connection, long issueId, EmailMessage message)
-        {
-            long ret = 0;
-            string sql = "insert into ContactRecord([TenantId], [IssueId], [ContactTypeId]" +
-                                ", [MessageDetails]" +
-                                ", [MessageDetailsEdited]" +
-                                ", [ContactDate], [DateToFollowUp]" +
-                                ", [CreatorUserName], [CreationTime]" +
-                                ", [LastModifierUserName], [LastModificationTime])" +
-                                " values" +
-                                " (@TenantId, @IssueId, @ContactTypeId" +
-                                ", @MessageDetails, @MessageDetailsEdited" +
-                                ", @ContactDate, @DateToFollowUp" +
-                                ", @CreatorUserName, getdate()" +
-                                ", @LastModifierUserName,  getdate()); select @@identity;";
-
-            SqlCommand command = new SqlCommand(sql, connection);
-            command.Parameters.AddWithValue("@TenantId", 1);
-            command.Parameters.AddWithValue("@IssueId", issueId);
-            command.Parameters.AddWithValue("@ContactTypeId", 1); //Inbound
-            command.Parameters.AddWithValue("@MessageDetails", message.BodyText == null ? message.EmailSubject : message.BodyText);
-            command.Parameters.AddWithValue("@MessageDetailsEdited", "");
-            command.Parameters.AddWithValue("@ContactDate", DateTime.Now);
-            command.Parameters.AddWithValue("@DateToFollowUp", DateTime.Now.AddDays(1));
-            command.Parameters.AddWithValue("@CreatorUserName", "EmailReceiver");
-            command.Parameters.AddWithValue("@LastModifierUserName", "EmailReceiver");
-
-            object res = command.ExecuteScalar();
-            if (IsNumeric(res.ToString()) && Convert.ToInt64(res) > 0)
-            {
-                ret = Convert.ToInt64(res);
-            }
-            return ret;
-        }
-
 
         private static long SendEmailAutoResponse(SqlConnection connection, EmailMessage message, string newMessage)
         {
@@ -154,8 +111,8 @@ namespace LifeLineEmailReceiverService
         }
         public static void SendErrorEmail(string message)
         {
-            Data.InsertMessageAndMessageQueueItem(MessageReceiveSingleton.FromEmail, MessageReceiveSingleton.ErrorEmails, MessageReceiveSingleton.BccEmail, "LifeLine Email Receiver Error"
-                        , "The LifeLine Email Receiver enouncountered an error:" + Environment.NewLine + Environment.NewLine + message);
+            Data.InsertMessageAndMessageQueueItem(MessageReceiveSingleton.FromEmail, MessageReceiveSingleton.ErrorEmails, MessageReceiveSingleton.BccEmail, "NetJet Email Receiver Error"
+                        , "The NetJet Email Receiver enouncountered an error:" + Environment.NewLine + Environment.NewLine + message);
         }
 
         private static long InsertMessageAndMessageQueueItem(string emailFrom, string emailTo, string emailBcc, string emailSubject, string emailBody)
@@ -345,7 +302,7 @@ namespace LifeLineEmailReceiverService
             return sb.ToString();
         }
 
-        private static long GetOrCreateIssue(SqlConnection connection, int memberId, EmailMessage message)
+        private static long GetOrCreateEmailRecord(SqlConnection connection, int employeeId, EmailMessage message)
         {
             Int64 ret = 0;
             /* Get the most recent Issue */
@@ -353,69 +310,41 @@ namespace LifeLineEmailReceiverService
                        "UNION select Id from Issue " +
                        "where MemberId=@MemberId and DateResolved is null " +
                        " ) as t1 " +
-                       ""; //TODO: support up to 5 emails
+                       "";
 
             SqlCommand command = new SqlCommand(sql, connection);
-            command.Parameters.AddWithValue("@MemberId", memberId);
+            command.Parameters.AddWithValue("@MemberId", employeeId);
             ret = Convert.ToInt64(command.ExecuteScalar());
             if (ret == 0) //Issue not found
             {
-                sql = "insert into Issue ([MemberId], [Title], [Description]" +
-                    ", [IssueTypeId], [DateDeadline], [IssueResolutionTypeId]" +
-                    ", [DateCreated], [UserNameCreatedBy], [DateModified], [UserNameModifiedBy])" +
-                    "values " +
-                    " (@MemberId, @Title, @Description" +
-                    ", @IssueTypeId, @DateDeadline, @IssueResolutionTypeId" +
-                    ", getdate(), @UserNameCreatedBy, getdate(), @UserNameModifiedBy" +
-                    "); select @@identity";
+                sql = "insert into Staging.Email ([EmployeeIdFrom], [EmailFrom], [Subject]" +
+                      ", [Body], [DateReceived], [DateProcessed], [TimeEntryId])" +
+                      "values " +
+                      " (@EmployeeIdFrom, @EmailFrom, @Subject" +
+                      ", @Body, getdate(), null, @TimeEntryId" +
+                      "); select @@identity";
                 command = new SqlCommand(sql, connection);
-                command.Parameters.AddWithValue("@MemberId", memberId);
-                command.Parameters.AddWithValue("@Title", message.EmailSubject);
-                command.Parameters.AddWithValue("@Description", message.BodyText);
-                command.Parameters.AddWithValue("@IssueTypeId", 11); //None
-                command.Parameters.AddWithValue("@DateDeadline", DateTime.Now.AddDays(1));
-                command.Parameters.AddWithValue("@IssueResolutionTypeId", 1); //Open
-                command.Parameters.AddWithValue("@UserNameCreatedBy", "EmailReceiver");
-                command.Parameters.AddWithValue("@UserNameModifiedBy", "EmailReceiver");
+                command.Parameters.AddWithValue("@EmployeeIdFrom", employeeId); // Assuming you have an employeeId variable
+                command.Parameters.AddWithValue("@EmailFrom", message.EmailFrom); // Assuming a message object with SenderEmail
+                command.Parameters.AddWithValue("@Subject", message.EmailSubject);
+                command.Parameters.AddWithValue("@Body", message.BodyText);
+                command.Parameters.AddWithValue("@TimeEntryId", DBNull.Value); // Nullable, set to DBNull.Value for null
 
                 ret = Convert.ToInt64(command.ExecuteScalar());
             }
             return ret;
         }
 
-        private static int GetOrCreateMember(SqlConnection connection, EmailMessage message)
+        private static int GetEmployeeIdFromEmail(SqlConnection connection, EmailMessage message)
         {
             Int32 ret = 0;
             string sql = "select max(Id) from (select 0 as Id " +
-                                                "UNION select Id from Member where Email=@Email ) as t1 "; //TODO: support up to 5 emails
+                                                "UNION select e.ID from ViewEmployees e where  Email=@Email ) as t1 "; //TODO: support up to 5 emails
 
             SqlCommand command = new SqlCommand(sql, connection);
             command.Parameters.AddWithValue("@Email", message.EmailFrom.Replace(";", ""));
             ret = Convert.ToInt32(command.ExecuteScalar());
 
-            //Not creating members this way at this stage: not enough info
-            //if (ret == 0) //Member not found
-            //{ 
-            //    sql = "insert into Member ([MemberId], [Title], [Description]" +
-            //        ", [IssueTypeId], [DateDeadline], [IssueResolutionTypeId]" +
-            //        ", [DateCreated], [UserNameCreatedBy], [DateModified], [UserNameModifiedBy])" +
-            //        "values " +
-            //        " (@MemberId, @Title, @Description" +
-            //        ", @IssueTypeId, @DateDeadline, @IssueResolutionTypeId" +
-            //        ", getdate(), @UserNameCreatedBy, getdate(), @UserNameModifiedBy" +
-            //        "); select @@identity";
-            //    command = new SqlCommand(sql, connection);
-            //    command.Parameters.AddWithValue("@MemberId", memberId);
-            //    command.Parameters.AddWithValue("@Title", memberId);
-            //    command.Parameters.AddWithValue("@Description", memberId);
-            //    command.Parameters.AddWithValue("@IssueTypeId", memberId);
-            //    command.Parameters.AddWithValue("@DateDeadline", memberId);
-            //    command.Parameters.AddWithValue("@IssueResolutionTypeId", memberId);
-            //    command.Parameters.AddWithValue("@UserNameCreatedBy", memberId);
-            //    command.Parameters.AddWithValue("@UserNameModifiedBy", memberId);
-
-            //    ret = Convert.ToInt64(command.ExecuteScalar());
-            //}
             return ret;
         }
 
