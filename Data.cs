@@ -44,7 +44,7 @@ namespace LifeLineEmailReceiverService
         }
         public static Int64 ImportEmailMessage(EmailMessage message) //, ILogger log)
         {
-            Int64 ret = 0;
+            //Int64 ret = 0;
             Int64 emailId = 0;
             int employeeId = 0;
             Int64 contactRecordId = 0;
@@ -60,7 +60,7 @@ namespace LifeLineEmailReceiverService
                         if (emailId > 0)
                         {
                             WriteToEventLog(String.Format("Email created with Id {0}", emailId.ToString()));
-                            ret = contactRecordId;
+                            //ret = contactRecordId;
                         }
                     }
                     catch (Exception ex)
@@ -77,7 +77,7 @@ namespace LifeLineEmailReceiverService
 
                 //}
                 //Console.ReadLine();
-                return ret;
+                return emailId;
             }
         }
 
@@ -89,7 +89,7 @@ namespace LifeLineEmailReceiverService
             //    "Password=Mug90918;Encrypt=True;TrustServerCertificate=False;" +
             //    "Connection Timeout=30;MultipleActiveResultSets=true";
             string connectionString =
-                "Server=localhost;Database=NetJetADTRP;User ID=teamtimewebuser;Password=tt@2014*;Connection Timeout=60;MultipleActiveResultSets=true";
+                "Server=localhost;Database=NetJetCmoadtrp;User ID=teamtimewebuser;Password=tt@2014*;Connection Timeout=60;MultipleActiveResultSets=true";
             var connection = new SqlConnection(connectionString);
             connection.Open();
             return connection;
@@ -304,45 +304,68 @@ namespace LifeLineEmailReceiverService
 
         private static long GetOrCreateEmailRecord(SqlConnection connection, int employeeId, EmailMessage message)
         {
-            Int64 ret = 0;
-            /* Get the most recent Issue */
-            string sql = "select max(Id) from (select 0 as Id " +
-                       "UNION select Id from Issue " +
-                       "where MemberId=@MemberId and DateResolved is null " +
-                       " ) as t1 " +
-                       "";
-
-            SqlCommand command = new SqlCommand(sql, connection);
-            command.Parameters.AddWithValue("@MemberId", employeeId);
-            ret = Convert.ToInt64(command.ExecuteScalar());
-            if (ret == 0) //Issue not found
+            Int64 emailId = 0;
+            
+            var subj = message.EmailSubject.Replace("  ", " ").Replace("Fw: ", "");
+            var arrSubj = subj.Split(' ');
+            if (arrSubj.Length > 0 && IsNumeric(arrSubj[0]))
             {
-                sql = "insert into Staging.Email ([EmployeeIdFrom], [EmailFrom], [Subject]" +
-                      ", [Body], [DateReceived], [DateProcessed], [TimeEntryId])" +
-                      "values " +
-                      " (@EmployeeIdFrom, @EmailFrom, @Subject" +
-                      ", @Body, getdate(), null, @TimeEntryId" +
-                      "); select @@identity";
-                command = new SqlCommand(sql, connection);
-                command.Parameters.AddWithValue("@EmployeeIdFrom", employeeId); // Assuming you have an employeeId variable
-                command.Parameters.AddWithValue("@EmailFrom", message.EmailFrom); // Assuming a message object with SenderEmail
-                command.Parameters.AddWithValue("@Subject", message.EmailSubject);
-                command.Parameters.AddWithValue("@Body", message.BodyText);
-                command.Parameters.AddWithValue("@TimeEntryId", DBNull.Value); // Nullable, set to DBNull.Value for null
+                try
+                {
+                    var projectId = Convert.ToInt32(arrSubj[0]);
+                    string sql = "insert into Staging.Email ([EmailFrom], [Subject], [Body], [DateReceived], ProjectId )" + //, [DateProcessed], ProjectId, [TimeEntryId])" +
+                          "values  (@EmailFrom, @Subject, @Body, getdate(), @ProjectId);" +
+                          " select @@identity";
+                    SqlCommand command = new SqlCommand(sql, connection);
+                    command = new SqlCommand(sql, connection);
+                    command.Parameters.AddWithValue("@EmailFrom", message.EmailFrom); // Assuming a message object with SenderEmail
+                    command.Parameters.AddWithValue("@Subject", message.EmailSubject);
+                    command.Parameters.AddWithValue("@Body", message.BodyText);
+                    command.Parameters.AddWithValue("@ProjectId", projectId); 
+                    //command.Parameters.AddWithValue("@TimeEntryId", DBNull.Value); 
 
-                ret = Convert.ToInt64(command.ExecuteScalar());
+                    emailId = Convert.ToInt64(command.ExecuteScalar());
+
+                    command = new SqlCommand(sql, connection);
+                    //sql = "exec AddTimeEntryFromStagingEmail @EmailId";
+                    sql = "exec AddTimeEntriesFromStagingEmails "; 
+
+                    //command.Parameters.AddWithValue("@EmailId", emailId);
+                    emailId = Convert.ToInt64(command.ExecuteScalar());
+                }
+                catch(Exception ex)
+                {
+                
+                }
+
+                
+
             }
-            return ret;
+            // }
+            return emailId;
         }
+        ///* Get the most recent Issue */
+        //string sql = "select max(Id) from (select 0 as Id " +
+        //           "UNION select Id from Issue " +
+        //           "where MemberId=@MemberId and DateResolved is null " +
+        //           " ) as t1 " +
+        //           "";
+
+
+        //command.Parameters.AddWithValue("@MemberId", employeeId);
+        //ret = Convert.ToInt64(command.ExecuteScalar());
+        //if (ret == 0) //Issue not found
+        //{
 
         private static int GetEmployeeIdFromEmail(SqlConnection connection, EmailMessage message)
         {
             Int32 ret = 0;
+            string emailFrom = message.EmailFrom.Replace(";", "");
             string sql = "select max(Id) from (select 0 as Id " +
-                                                "UNION select e.ID from ViewEmployees e where  Email=@Email ) as t1 "; //TODO: support up to 5 emails
+                                                "UNION select e.ID from ViewstaffMembers e where  Email=@Email ) as t1 "; //TODO: support up to 5 emails
 
             SqlCommand command = new SqlCommand(sql, connection);
-            command.Parameters.AddWithValue("@Email", message.EmailFrom.Replace(";", ""));
+            command.Parameters.AddWithValue("@Email", emailFrom);
             ret = Convert.ToInt32(command.ExecuteScalar());
 
             return ret;

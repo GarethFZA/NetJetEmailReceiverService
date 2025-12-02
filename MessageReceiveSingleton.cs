@@ -40,12 +40,17 @@ namespace Charismatech.MessageQueueClasses
             }
         }
         //private static string _SMTPServer = "outlook.office365.com"; //ConfigurationManager.AppSettings["POP3Server"];
-        private static string _SMTPServer = "outlook.office365.com";// "mail.charismatech.co.za"; 
+        //private static string _SMTPServer = "outlook.office365.com";// "mail.charismatech.co.za"; 
+        //private static int _SMTPPort = 993;//Convert.ToInt32(ConfigurationManager.AppSettings["POP3Port"]);
+        //private static bool _SMTPUseSSL = true;
+        //private static string _SMTPUsername = "projects@adtrp.com"; //ConfigurationManager.AppSettings["POP3Username"];
+        //private static string _SMTPPassword = "D(173691557380ur"; //ConfigurationManager.AppSettings["POP3Password"];
+
+        private static string _SMTPServer = "mail.netjet.co.za";// "mail.charismatech.co.za"; 
         private static int _SMTPPort = 993;//Convert.ToInt32(ConfigurationManager.AppSettings["POP3Port"]);
         private static bool _SMTPUseSSL = true;
-        private static string _SMTPUsername = "projects@adtrp.com"; //ConfigurationManager.AppSettings["POP3Username"];
-        private static string _SMTPPassword = "D(173691557380ur"; //ConfigurationManager.AppSettings["POP3Password"];
-
+        private static string _SMTPUsername = "timeentry@netjet.co.za"; //ConfigurationManager.AppSettings["POP3Username"];
+        private static string _SMTPPassword = "NNNjjj2025$$$"; //ConfigurationManager.AppSettings["POP3Password"];
 
         public static string FromEmail = "service@charismatech.co.za";
         public static string BccEmail = "service@charismatech.co.za";
@@ -107,6 +112,7 @@ namespace Charismatech.MessageQueueClasses
                         var uids = client.Inbox.Search(query);
                         WriteToEventLog(String.Format("Recent messages: {0}", uids.Count));
                         //for (int i = 0; i < inbox.Count; i++)
+                        
                         foreach (var uid in uids)
                         {
                             string strMessageGUID = Guid.NewGuid().ToString();
