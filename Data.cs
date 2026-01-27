@@ -305,14 +305,16 @@ namespace LifeLineEmailReceiverService
         private static long GetOrCreateEmailRecord(SqlConnection connection, int employeeId, EmailMessage message)
         {
             Int64 emailId = 0;
-            
-            var subj = message.EmailSubject.Replace("  ", " ").Replace("Fw: ", "");
+
+            var subj = message.EmailSubject.Replace("  ", " ").Replace("Fw: ", "").Replace("FW: ", "").Replace("Fw:", "").Replace("FW:", "");
             var arrSubj = subj.Split(' ');
-            if (arrSubj.Length > 0 && IsNumeric(arrSubj[0]))
+            if (arrSubj.Length > 0)
             {
                 try
                 {
-                    var projectId = Convert.ToInt32(arrSubj[0]);
+                    var projectId = 0;  //default to unallocated
+                    if (IsNumeric(arrSubj[0]))
+                        projectId = Convert.ToInt32(arrSubj[0]);
                     string sql = "insert into Staging.Email ([EmailFrom], [Subject], [Body], [DateReceived], ProjectId )" + //, [DateProcessed], ProjectId, [TimeEntryId])" +
                           "values  (@EmailFrom, @Subject, @Body, getdate(), @ProjectId);" +
                           " select @@identity";
@@ -321,24 +323,25 @@ namespace LifeLineEmailReceiverService
                     command.Parameters.AddWithValue("@EmailFrom", message.EmailFrom); // Assuming a message object with SenderEmail
                     command.Parameters.AddWithValue("@Subject", message.EmailSubject);
                     command.Parameters.AddWithValue("@Body", message.BodyText);
-                    command.Parameters.AddWithValue("@ProjectId", projectId); 
+                    command.Parameters.AddWithValue("@ProjectId", projectId);
                     //command.Parameters.AddWithValue("@TimeEntryId", DBNull.Value); 
 
                     emailId = Convert.ToInt64(command.ExecuteScalar());
 
-                    command = new SqlCommand(sql, connection);
+                    //command = new SqlCommand(sql, connection);
                     //sql = "exec AddTimeEntryFromStagingEmail @EmailId";
-                    sql = "exec AddTimeEntriesFromStagingEmails "; 
-
+                    sql = "exec AddTimeEntriesFromStagingEmails ";
+                    command = new SqlCommand(sql, connection);
+                    command.ExecuteScalar();
                     //command.Parameters.AddWithValue("@EmailId", emailId);
-                    emailId = Convert.ToInt64(command.ExecuteScalar());
+                    //emailId = Convert.ToInt64(command.ExecuteScalar());
                 }
-                catch(Exception ex)
+                catch (Exception ex)
                 {
-                
+
                 }
 
-                
+
 
             }
             // }

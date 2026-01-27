@@ -39,7 +39,7 @@ namespace EmailProcessorConsoleTest
                 else
                 {
                     // configurable delay between loop iterations
-                    Thread.Sleep(TimeSpan.FromMinutes(1));
+                    Thread.Sleep(TimeSpan.FromMinutes(2));
                 }
             } while (true);
 
