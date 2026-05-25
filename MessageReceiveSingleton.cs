@@ -39,55 +39,66 @@ namespace Charismatech.MessageQueueClasses
                 return instance;
             }
         }
-        //private static string _SMTPServer = "outlook.office365.com"; //ConfigurationManager.AppSettings["POP3Server"];
-        //private static string _SMTPServer = "outlook.office365.com";// "mail.charismatech.co.za"; 
-        //private static int _SMTPPort = 993;//Convert.ToInt32(ConfigurationManager.AppSettings["POP3Port"]);
-        //private static bool _SMTPUseSSL = true;
-        //private static string _SMTPUsername = "projects@adtrp.com"; //ConfigurationManager.AppSettings["POP3Username"];
-        //private static string _SMTPPassword = "D(173691557380ur"; //ConfigurationManager.AppSettings["POP3Password"];
+        private static string _SMTPServer = ConfigurationManager.AppSettings["IMAPServer"];
+        private static int _SMTPPort = Convert.ToInt32(ConfigurationManager.AppSettings["IMAPPort"]);
+        private static bool _SMTPUseSSL = Convert.ToBoolean(ConfigurationManager.AppSettings["IMAPUseSSL"]);
+        private static string _SMTPUsername = ConfigurationManager.AppSettings["IMAPUsername"];
+        private static string _SMTPPassword = ConfigurationManager.AppSettings["IMAPPassword"];
 
-        private static string _SMTPServer = "mail.netjet.co.za";// "mail.charismatech.co.za"; 
-        private static int _SMTPPort = 993;//Convert.ToInt32(ConfigurationManager.AppSettings["POP3Port"]);
-        private static bool _SMTPUseSSL = true;
-        private static string _SMTPUsername = "timeentry@netjet.co.za"; //ConfigurationManager.AppSettings["POP3Username"];
-        private static string _SMTPPassword = "NNNjjj2025$$$"; //ConfigurationManager.AppSettings["POP3Password"];
-
-        public static string FromEmail = "service@charismatech.co.za";
-        public static string BccEmail = "service@charismatech.co.za";
-        public static string ErrorEmails = "service@charismatech.co.za";
+        public static string FromEmail = ConfigurationManager.AppSettings["FromEmail"];
+        public static string BccEmail = ConfigurationManager.AppSettings["BccEmail"];
+        public static string ErrorEmails = ConfigurationManager.AppSettings["ErrorEmails"];
 
         public static void WriteToEventLog(string sEvent)
         {
             Data.WriteToEventLog(sEvent);
             
         }
-        public void ProcessEmailsIMAP()
-        {
-            WriteToEventLog("Processing emails IMAP...");
-            //string _cloudUploadedFilesContainerName = "pop3-messages";
-            //string _storageConnectionString = "";//ConfigurationManager.AppSettings["AzureWebJobsStorage"];
+        private static readonly int _maxRetries = 3;
+        private static readonly int _retryBaseDelayMs = 5000; // 5s, 10s, 20s
 
-            using (var client = new ImapClient())
+        private bool ConnectWithRetry(ImapClient client)
+        {
+            for (int attempt = 1; attempt <= _maxRetries; attempt++)
             {
-                // For demo-purposes, accept all SSL certificates (in case the server supports STARTTLS)
-                
-                bool error = false;
                 try
                 {
-                    //client.Connect(_SMTPServer, _SMTPPort, _SMTPUseSSL,);
                     client.ServerCertificateValidationCallback = (s, c, h, e) => true;
-                    //client.Connect(_SMTPServer, _SMTPPort, SecureSocketOptions.StartTls);
                     client.Connect(_SMTPServer, _SMTPPort, SecureSocketOptions.Auto);
-
-                    // Note: since we don't have an OAuth2 token, disable
-                    // the XOAUTH2 authentication mechanism.
                     client.AuthenticationMechanisms.Remove("XOAUTH2");
                     client.AuthenticationMechanisms.Remove("NTLM");
                     client.Authenticate(_SMTPUsername, _SMTPPassword);
-                    //client.Connect("outlook.office365.com", 993, true);
-                    //client.AuthenticationMechanisms.Remove("XOAUTH2");
-                    //client.Authenticate(userName + @"\" + sharedMailboxAlias, password);
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    WriteToEventLog(string.Format("IMAP connect attempt {0}/{1} failed: {2}", attempt, _maxRetries, ex.Message));
+                    if (attempt == _maxRetries)
+                    {
+                        Data.SendErrorEmail(ex.Message);
+                        return false;
+                    }
+                    int delayMs = _retryBaseDelayMs * (int)Math.Pow(2, attempt - 1);
+                    WriteToEventLog(string.Format("Retrying in {0}ms...", delayMs));
+                    System.Threading.Thread.Sleep(delayMs);
+                }
+            }
+            return false;
+        }
 
+        public void ProcessEmailsIMAP()
+        {
+            WriteToEventLog("Processing emails IMAP...");
+
+            using (var client = new ImapClient())
+            {
+                bool error = false;
+                try
+                {
+                    if (!ConnectWithRetry(client))
+                    {
+                        error = true;
+                    }
                 }
                 catch (Exception ex)
                 {
@@ -141,18 +152,21 @@ namespace Charismatech.MessageQueueClasses
                             if ((emailMessage.BodyText == null || emailMessage.BodyText == "") && message.HtmlBody != "")
                                 emailMessage.BodyText = HtmlUtilities.ConvertToPlainText(message.HtmlBody);
                             if (message.From.ToString().Contains("no-reply"))
+                            {
                                 client.Inbox.SetFlags(uid, MessageFlags.Seen, true); //Ignore spam
+                                client.Inbox.AddFlags(uid, MessageFlags.Deleted, true);
+                            }
                             else
                             {
                                 Int64 crId = Data.ImportEmailMessage(emailMessage);
-                                if (crId > 0) //Successfully created
+                                if (crId > 0) //Successfully imported — mark for deletion to keep mailbox clear
                                 {
-                                    //message.Delete
-                                    //Message has been read
-                                    client.Inbox.SetFlags(uid, MessageFlags.Seen, true);
+                                    client.Inbox.SetFlags(uid, MessageFlags.Seen | MessageFlags.Deleted, true);
                                 }
                             }
+                            System.Threading.Thread.Sleep(500); // Avoid throttling: small delay between messages
                         }
+                        client.Inbox.Expunge(); // Permanently remove all messages flagged as Deleted
                         WriteToEventLog("client.Disconnect");
                         client.Disconnect(true);
                         #endregion read and process messages
