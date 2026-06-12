@@ -1,15 +1,19 @@
 ﻿using System;
 using Charismatech.MessageQueueClasses;
 using System.Threading;
+using System.Configuration;
 
 namespace EmailProcessorConsoleTest
 {
     class Program
     {
+
+        public static int SleepTimeMinutes = Convert.ToInt32(ConfigurationManager.AppSettings["SleepTimeMinutes"]);
         static void Main(string[] args)
         {
             Console.WriteLine("Email processor console test");
             Console.WriteLine("Type 'run' to run once, 'loop' to run repeatedly, or press Enter to run once.");
+
             var cmd = Console.ReadLine();
             bool loop = string.Equals(cmd, "loop", StringComparison.OrdinalIgnoreCase);
 
@@ -39,7 +43,7 @@ namespace EmailProcessorConsoleTest
                 else
                 {
                     // configurable delay between loop iterations
-                    Thread.Sleep(TimeSpan.FromMinutes(2));
+                    Thread.Sleep(TimeSpan.FromMinutes(SleepTimeMinutes));
                 }
             } while (true);
 

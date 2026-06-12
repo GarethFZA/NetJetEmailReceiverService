@@ -11,7 +11,7 @@ namespace LifeLineEmailReceiverService
     public static class Data
     {
 
-        public static void WriteToEventLog(string sEvent)
+        public static void WriteToEventLog(string sEvent, bool writeToConsole = false)
         {
 
             string sSource;
@@ -21,35 +21,37 @@ namespace LifeLineEmailReceiverService
 
             try
             {
+                if (writeToConsole) Console.WriteLine(sEvent);
                 if (!EventLog.SourceExists(sSource))
                     EventLog.CreateEventSource(sSource, sLog);
 
                 EventLog.WriteEntry(sSource, sEvent, EventLogEntryType.Information, 234);
+                
             }
             catch (Exception ex)
             {
-                try
-                {
-                    SqlDb.execSQL("insert into ErrorLog (DateOFError, Message) values (getdate(), @Message)", new SqlParameter("Message", sEvent + Environment.NewLine + ex.Message));
-                }
-                catch { }
-                try
-                {
-                    Data.SendErrorEmail(sEvent + Environment.NewLine + ex.Message);
-                }
-                catch { }
+                //try
+                //{
+                    //SqlDb.execSQL("insert into ErrorLog (DateOFError, Message) values (getdate(), @Message)", new SqlParameter("Message", sEvent + Environment.NewLine + ex.Message));
+                //}
+                //catch { }
+                //try
+                //{
+                //    Data.SendErrorEmail(sEvent + Environment.NewLine + ex.Message);
+                //}
+                //catch { }
 
             }
 
         }
         public static Int64 ImportEmailMessage(EmailMessage message) //, ILogger log)
         {
-            //Int64 ret = 0;
+            //Int64 ret = 0;    
             Int64 emailId = 0;
             int employeeId = 0;
             Int64 contactRecordId = 0;
 
-            using (SqlConnection connection = getSqlConnection())
+            using (SqlConnection connection = SqlDb.getDBConn())// getSqlConnection())
             {
                 employeeId = GetEmployeeIdFromEmail(connection, message);
                 if (employeeId > 0)

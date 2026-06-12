@@ -48,14 +48,15 @@ namespace Charismatech.MessageQueueClasses
         public static string FromEmail = ConfigurationManager.AppSettings["FromEmail"];
         public static string BccEmail = ConfigurationManager.AppSettings["BccEmail"];
         public static string ErrorEmails = ConfigurationManager.AppSettings["ErrorEmails"];
-
-        public static void WriteToEventLog(string sEvent)
+        public static bool DebugMode = ConfigurationManager.AppSettings["DebugMode"].ToString() == "true";
+        public static int CheckIntervalSeconds = Convert.ToInt32(ConfigurationManager.AppSettings["CheckIntervalSeconds"]);
+        public static void WriteToEventLog(string sEvent, bool writeToConsole = false)
         {
-            Data.WriteToEventLog(sEvent);
-            
+            Data.WriteToEventLog(sEvent, writeToConsole);
         }
         private static readonly int _maxRetries = 3;
         private static readonly int _retryBaseDelayMs = 5000; // 5s, 10s, 20s
+
 
         private bool ConnectWithRetry(ImapClient client)
         {
@@ -72,15 +73,15 @@ namespace Charismatech.MessageQueueClasses
                 }
                 catch (Exception ex)
                 {
-                    WriteToEventLog(string.Format("IMAP connect attempt {0}/{1} failed: {2}", attempt, _maxRetries, ex.Message));
+                    WriteToEventLog(string.Format("IMAP connect attempt {0}/{1} failed: {2}", attempt, _maxRetries, ex.Message), DebugMode);
                     if (attempt == _maxRetries)
                     {
                         Data.SendErrorEmail(ex.Message);
                         return false;
                     }
-                    int delayMs = _retryBaseDelayMs * (int)Math.Pow(2, attempt - 1);
-                    WriteToEventLog(string.Format("Retrying in {0}ms...", delayMs));
-                    System.Threading.Thread.Sleep(delayMs);
+                    int retryDelayMs = _retryBaseDelayMs * (int)Math.Pow(2, attempt - 1);
+                    WriteToEventLog(string.Format("Retrying in {0}ms...", retryDelayMs), DebugMode);
+                    System.Threading.Thread.Sleep(retryDelayMs);
                 }
             }
             return false;
@@ -88,7 +89,7 @@ namespace Charismatech.MessageQueueClasses
 
         public void ProcessEmailsIMAP()
         {
-            WriteToEventLog("Processing emails IMAP...");
+            WriteToEventLog("Processing emails IMAP...", true);
 
             using (var client = new ImapClient())
             {
@@ -103,7 +104,7 @@ namespace Charismatech.MessageQueueClasses
                 catch (Exception ex)
                 {
                     error = true;
-                    WriteToEventLog(ex.Message);
+                    WriteToEventLog(ex.Message, true);
                     Data.SendErrorEmail(ex.Message);
                 }
 
@@ -115,15 +116,17 @@ namespace Charismatech.MessageQueueClasses
                         var inbox = client.Inbox;
                         inbox.Open(FolderAccess.ReadWrite);
                         //WriteToEventLog(String.Format("Total messages: {0}", inbox.Count));
-                        
+
 
                         var dtFrom = DateTime.Now.AddDays(-60); //Two months
                         var query = SearchQuery.DeliveredAfter(dtFrom).And(SearchQuery.NotSeen); //.SubjectContains("").Or(SearchQuery.SubjectContains(""));
                         var orderBy = new[] { OrderBy.Arrival };
                         var uids = client.Inbox.Search(query);
-                        WriteToEventLog(String.Format("Recent messages: {0}", uids.Count));
+                        WriteToEventLog(String.Format("Recent messages: {0}", uids.Count), true);
                         //for (int i = 0; i < inbox.Count; i++)
-                        
+
+                        int successCount = 0;
+                        int failCount = 0;
                         foreach (var uid in uids)
                         {
                             string strMessageGUID = Guid.NewGuid().ToString();
@@ -162,18 +165,24 @@ namespace Charismatech.MessageQueueClasses
                                 if (crId > 0) //Successfully imported — mark for deletion to keep mailbox clear
                                 {
                                     client.Inbox.SetFlags(uid, MessageFlags.Seen | MessageFlags.Deleted, true);
+                                    successCount++;
+                                }
+                                else
+                                {
+                                    failCount++;
                                 }
                             }
-                            System.Threading.Thread.Sleep(500); // Avoid throttling: small delay between messages
+                            System.Threading.Thread.Sleep(TimeSpan.FromSeconds(CheckIntervalSeconds)); // Avoid throttling: small delay between messages
                         }
                         client.Inbox.Expunge(); // Permanently remove all messages flagged as Deleted
-                        WriteToEventLog("client.Disconnect");
+                        WriteToEventLog(String.Format("Import results - Success: {0}, Failed: {1}", successCount, failCount), true);
+                        WriteToEventLog("client.Disconnect", DebugMode);
                         client.Disconnect(true);
                         #endregion read and process messages
                     }
                     catch (Exception ex)
                     {
-                        WriteToEventLog(ex.Message);
+                        WriteToEventLog(ex.Message, true);
                         Data.SendErrorEmail(ex.Message);
                     }
                 }
